@@ -3,8 +3,12 @@ const { MongoMemoryServer } = require('mongodb-memory-server');
 const { spendTokens, spendStructuredTokens } = require('./spendTokens');
 const { getBalanceConfig } = require('~/server/services/Config');
 const { getMultiplier, getCacheMultiplier } = require('./tx');
-const { createTransaction } = require('./Transaction');
-const { Balance } = require('~/db/models');
+const {
+  createTransaction,
+  createStructuredTransaction,
+  createAutoRefillTransaction,
+} = require('./Transaction');
+const { Balance, Transaction } = require('~/db/models');
 
 // Mock the custom config module so we can control the balance flag.
 jest.mock('~/server/services/Config');
@@ -373,5 +377,179 @@ describe('NaN Handling Tests', () => {
     expect(result).toBeUndefined();
     const balance = await Balance.findOne({ user: userId });
     expect(balance.tokenCredits).toBe(initialBalance);
+  });
+});
+
+describe('Balance Disabled Tests', () => {
+  test('createTransaction should not save transaction when balance is disabled', async () => {
+    // Arrange
+    getBalanceConfig.mockResolvedValue({ enabled: false });
+    const userId = new mongoose.Types.ObjectId();
+    const initialBalance = 10000000;
+    await Balance.create({ user: userId, tokenCredits: initialBalance });
+
+    const model = 'gpt-3.5-turbo';
+    const txData = {
+      user: userId,
+      conversationId: 'test-conversation-id',
+      model,
+      context: 'test',
+      endpointTokenConfig: null,
+      rawAmount: -100,
+      tokenType: 'prompt',
+    };
+
+    // Act
+    const result = await createTransaction(txData);
+
+    // Assert: No transaction should be created, no result returned, and balance unchanged
+    expect(result).toBeUndefined();
+    const transactions = await Transaction.find({ user: userId });
+    expect(transactions).toHaveLength(0);
+    const balance = await Balance.findOne({ user: userId });
+    expect(balance.tokenCredits).toBe(initialBalance);
+  });
+
+  test('createStructuredTransaction should not save transaction when balance is disabled', async () => {
+    // Arrange
+    getBalanceConfig.mockResolvedValue({ enabled: false });
+    const userId = new mongoose.Types.ObjectId();
+    const initialBalance = 10000000;
+    await Balance.create({ user: userId, tokenCredits: initialBalance });
+
+    const model = 'claude-3-5-sonnet';
+    const txData = {
+      user: userId,
+      conversationId: 'test-conversation-id',
+      model,
+      context: 'message',
+      tokenType: 'prompt',
+      inputTokens: -10,
+      writeTokens: -100,
+      readTokens: -5,
+    };
+
+    // Act
+    const result = await createStructuredTransaction(txData);
+
+    // Assert: No transaction should be created, no result returned, and balance unchanged
+    expect(result).toBeUndefined();
+    const transactions = await Transaction.find({ user: userId });
+    expect(transactions).toHaveLength(0);
+    const balance = await Balance.findOne({ user: userId });
+    expect(balance.tokenCredits).toBe(initialBalance);
+  });
+
+  test('createAutoRefillTransaction should not save transaction when balance is disabled', async () => {
+    // Arrange
+    getBalanceConfig.mockResolvedValue({ enabled: false });
+    const userId = new mongoose.Types.ObjectId();
+    const initialBalance = 10000000;
+    await Balance.create({ user: userId, tokenCredits: initialBalance });
+
+    const txData = {
+      user: userId,
+      tokenType: 'credits',
+      context: 'autoRefill',
+      rawAmount: 5000000,
+    };
+
+    // Act
+    const result = await createAutoRefillTransaction(txData);
+
+    // Assert: No transaction should be created, no result returned, and balance unchanged
+    expect(result).toBeUndefined();
+    const transactions = await Transaction.find({ user: userId });
+    expect(transactions).toHaveLength(0);
+    const balance = await Balance.findOne({ user: userId });
+    expect(balance.tokenCredits).toBe(initialBalance);
+  });
+
+  test('createTransaction should save transaction when balance is enabled', async () => {
+    // Arrange
+    getBalanceConfig.mockResolvedValue({ enabled: true });
+    const userId = new mongoose.Types.ObjectId();
+    const initialBalance = 10000000;
+    await Balance.create({ user: userId, tokenCredits: initialBalance });
+
+    const model = 'gpt-3.5-turbo';
+    const txData = {
+      user: userId,
+      conversationId: 'test-conversation-id',
+      model,
+      context: 'test',
+      endpointTokenConfig: null,
+      rawAmount: -100,
+      tokenType: 'prompt',
+    };
+
+    // Act
+    const result = await createTransaction(txData);
+
+    // Assert: Transaction should be created and balance updated
+    expect(result).toBeDefined();
+    expect(result.balance).toBeLessThan(initialBalance);
+    const transactions = await Transaction.find({ user: userId });
+    expect(transactions).toHaveLength(1);
+    expect(transactions[0].rawAmount).toBe(-100);
+  });
+
+  test('createStructuredTransaction should save transaction when balance is enabled', async () => {
+    // Arrange
+    getBalanceConfig.mockResolvedValue({ enabled: true });
+    const userId = new mongoose.Types.ObjectId();
+    const initialBalance = 10000000;
+    await Balance.create({ user: userId, tokenCredits: initialBalance });
+
+    const model = 'claude-3-5-sonnet';
+    const txData = {
+      user: userId,
+      conversationId: 'test-conversation-id',
+      model,
+      context: 'message',
+      tokenType: 'prompt',
+      inputTokens: -10,
+      writeTokens: -100,
+      readTokens: -5,
+    };
+
+    // Act
+    const result = await createStructuredTransaction(txData);
+
+    // Assert: Transaction should be created and balance updated
+    expect(result).toBeDefined();
+    expect(result.balance).toBeLessThan(initialBalance);
+    const transactions = await Transaction.find({ user: userId });
+    expect(transactions).toHaveLength(1);
+    expect(transactions[0].inputTokens).toBe(-10);
+    expect(transactions[0].writeTokens).toBe(-100);
+    expect(transactions[0].readTokens).toBe(-5);
+  });
+
+  test('createAutoRefillTransaction should save transaction when balance is enabled', async () => {
+    // Arrange
+    getBalanceConfig.mockResolvedValue({ enabled: true });
+    const userId = new mongoose.Types.ObjectId();
+    const initialBalance = 10000000;
+    await Balance.create({ user: userId, tokenCredits: initialBalance });
+
+    const txData = {
+      user: userId,
+      tokenType: 'credits',
+      context: 'autoRefill',
+      rawAmount: 5000000,
+    };
+
+    // Act
+    const result = await createAutoRefillTransaction(txData);
+
+    // Assert: Transaction should be created and balance updated
+    expect(result).toBeDefined();
+    expect(result.balance).toBeGreaterThan(initialBalance);
+    expect(result.transaction).toBeDefined();
+    const transactions = await Transaction.find({ user: userId });
+    expect(transactions).toHaveLength(1);
+    expect(transactions[0].rawAmount).toBe(5000000);
+    expect(transactions[0].context).toBe('autoRefill');
   });
 });

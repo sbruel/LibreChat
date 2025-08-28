@@ -165,6 +165,13 @@ async function createAutoRefillTransaction(txData) {
   if (txData.rawAmount != null && isNaN(txData.rawAmount)) {
     return;
   }
+
+  // Auto-refill only makes sense when balance is enabled
+  const balance = await getBalanceConfig();
+  if (!balance?.enabled) {
+    return;
+  }
+
   const transaction = new Transaction(txData);
   transaction.endpointTokenConfig = txData.endpointTokenConfig;
   calculateTokenValue(transaction);
@@ -194,16 +201,16 @@ async function createTransaction(txData) {
     return;
   }
 
+  const balance = await getBalanceConfig();
+  if (!balance?.enabled) {
+    return;
+  }
+
   const transaction = new Transaction(txData);
   transaction.endpointTokenConfig = txData.endpointTokenConfig;
   calculateTokenValue(transaction);
 
   await transaction.save();
-
-  const balance = await getBalanceConfig();
-  if (!balance?.enabled) {
-    return;
-  }
 
   let incrementValue = transaction.tokenValue;
   const balanceResponse = await updateBalance({
@@ -224,6 +231,11 @@ async function createTransaction(txData) {
  * @param {txData} txData - Transaction data.
  */
 async function createStructuredTransaction(txData) {
+  const balance = await getBalanceConfig();
+  if (!balance?.enabled) {
+    return;
+  }
+
   const transaction = new Transaction({
     ...txData,
     endpointTokenConfig: txData.endpointTokenConfig,
@@ -232,11 +244,6 @@ async function createStructuredTransaction(txData) {
   calculateStructuredTokenValue(transaction);
 
   await transaction.save();
-
-  const balance = await getBalanceConfig();
-  if (!balance?.enabled) {
-    return;
-  }
 
   let incrementValue = transaction.tokenValue;
 
