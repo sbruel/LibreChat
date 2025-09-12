@@ -1,4 +1,4 @@
-import { memo, useCallback } from 'react';
+import { memo, useCallback, useState } from 'react';
 import { useRecoilValue } from 'recoil';
 import { useForm } from 'react-hook-form';
 import { Spinner } from '@librechat/client';
@@ -10,6 +10,7 @@ import { ChatContext, AddedChatContext, useFileMapContext, ChatFormProvider } fr
 import { useChatHelpers, useAddedResponse, useSSE } from '~/hooks';
 import ConversationStarters from './Input/ConversationStarters';
 import { useGetMessagesByConvoId } from '~/data-provider';
+import VoiceConversation from './VoiceConversation/VoiceConversation';
 import MessagesView from './Messages/MessagesView';
 import Presentation from './Presentation';
 import ChatForm from './Input/ChatForm';
@@ -34,6 +35,8 @@ function ChatView({ index = 0 }: { index?: number }) {
   const rootSubmission = useRecoilValue(store.submissionByIndex(index));
   const addedSubmission = useRecoilValue(store.submissionByIndex(index + 1));
   const centerFormOnLanding = useRecoilValue(store.centerFormOnLanding);
+  const conversation = useRecoilValue(store.conversationByIndex(index));
+  const [voiceMessages, setVoiceMessages] = useState<TMessage[]>([]);
 
   const fileMap = useFileMapContext();
 
@@ -58,18 +61,35 @@ function ChatView({ index = 0 }: { index?: number }) {
     defaultValues: { text: '' },
   });
 
+  // Check if realtime model is selected
+  const isRealtimeModel = conversation?.model?.includes('realtime') || 
+                          conversation?.model === 'gpt-4o-realtime-preview' ||
+                          conversation?.model === 'gpt-4o-realtime';
+
   let content: JSX.Element | null | undefined;
   const isLandingPage =
     (!messagesTree || messagesTree.length === 0) &&
     (conversationId === Constants.NEW_CONVO || !conversationId);
   const isNavigating = (!messagesTree || messagesTree.length === 0) && conversationId != null;
 
-  if (isLoading && conversationId !== Constants.NEW_CONVO) {
+  // Handle voice conversation for realtime models
+  if (isRealtimeModel && !isLoading) {
+    content = (
+      <VoiceConversation
+        conversationId={conversationId}
+        endpoint={conversation?.endpoint}
+        model={conversation?.model}
+        onTranscriptUpdate={setVoiceMessages}
+      />
+    );
+  } else if (isLoading && conversationId !== Constants.NEW_CONVO) {
     content = <LoadingSpinner />;
   } else if ((isLoading || isNavigating) && !isLandingPage) {
     content = <LoadingSpinner />;
   } else if (!isLandingPage) {
-    content = <MessagesView messagesTree={messagesTree} />;
+    // Combine regular messages with voice messages if any
+    const combinedMessages = voiceMessages.length > 0 ? voiceMessages : messagesTree;
+    content = <MessagesView messagesTree={combinedMessages} />;
   } else {
     content = <Landing centerFormOnLanding={centerFormOnLanding} />;
   }
@@ -91,15 +111,17 @@ function ChatView({ index = 0 }: { index?: number }) {
                   )}
                 >
                   {content}
-                  <div
-                    className={cn(
-                      'w-full',
-                      isLandingPage && 'max-w-3xl transition-all duration-200 xl:max-w-4xl',
-                    )}
-                  >
-                    <ChatForm index={index} />
-                    {isLandingPage ? <ConversationStarters /> : <Footer />}
-                  </div>
+                  {!isRealtimeModel && (
+                    <div
+                      className={cn(
+                        'w-full',
+                        isLandingPage && 'max-w-3xl transition-all duration-200 xl:max-w-4xl',
+                      )}
+                    >
+                      <ChatForm index={index} />
+                      {isLandingPage ? <ConversationStarters /> : <Footer />}
+                    </div>
+                  )}
                 </div>
                 {isLandingPage && <Footer />}
               </>

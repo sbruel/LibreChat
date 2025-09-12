@@ -27,6 +27,8 @@ const edit = require('./edit');
 const keys = require('./keys');
 const user = require('./user');
 const mcp = require('./mcp');
+const realtime = require('./realtime');
+const audio = require('./audio');
 
 module.exports = {
   mcp,
@@ -56,6 +58,8 @@ module.exports = {
   tokenizer,
   assistants,
   categories,
+  realtime,
+  audio,
   staticRoute,
   accessPermissions,
 };
