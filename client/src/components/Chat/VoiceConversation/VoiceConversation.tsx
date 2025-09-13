@@ -6,6 +6,7 @@ import type { TMessage } from 'librechat-data-provider';
 import { buildTree } from 'librechat-data-provider';
 import { useRecoilValue } from 'recoil';
 import store from '~/store';
+import { DEFAULT_VOICE_SYSTEM_PROMPT, DEFAULT_VOICE } from '~/constants/voice';
 
 interface VoiceConversationProps {
   conversationId?: string;
@@ -40,8 +41,8 @@ export default function VoiceConversation({
     toggleSpeaker
   } = useRealtimeVoice({
     conversationId,
-    systemPrompt: conversation?.assistant || 'You are a helpful assistant.',
-    voice: 'cedar',
+    systemPrompt: conversation?.assistant || DEFAULT_VOICE_SYSTEM_PROMPT,
+    voice: DEFAULT_VOICE,
     onTranscriptUpdate,
     onError: (error) => {
       console.error('Voice conversation error:', error);

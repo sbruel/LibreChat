@@ -3,6 +3,8 @@
  * Adapted from QuickVoice for LibreChat integration
  */
 
+import { DEFAULT_VOICE_SYSTEM_PROMPT, DEFAULT_VOICE } from '~/constants/voice';
+
 export interface RealtimeVoiceConfig {
   // Session Configuration
   voice?: 'alloy' | 'ash' | 'ballad' | 'cedar' | 'coral' | 'echo' | 'marin' | 'sage' | 'shimmer' | 'verse';
@@ -56,9 +58,9 @@ export class RealtimeVoiceClient {
 
   constructor(config: RealtimeVoiceConfig = {}) {
     this.config = {
-      voice: config.voice || 'cedar',
+      voice: config.voice || DEFAULT_VOICE,
       language: config.language || 'en',
-      systemPrompt: config.systemPrompt || 'You are a helpful, conversational assistant.',
+      systemPrompt: config.systemPrompt || DEFAULT_VOICE_SYSTEM_PROMPT,
       initialInstructions: config.initialInstructions || null,
       tools: config.tools || [],
       ...config,
@@ -359,14 +361,48 @@ export class RealtimeVoiceClient {
     this.dataChannel = this.peerConnection!.createDataChannel('oai-events');
     
     this.dataChannel.onopen = () => {
-      // Send initial greeting if configured
+      // Send session update to configure the assistant
+      const sessionUpdate = {
+        type: 'session.update',
+        session: {
+          modalities: ['text', 'audio'],
+          instructions: this.config.systemPrompt || DEFAULT_VOICE_SYSTEM_PROMPT,
+          voice: this.config.voice || DEFAULT_VOICE,
+          input_audio_transcription: {
+            model: 'whisper-1'
+          },
+          turn_detection: {
+            type: 'server_vad',
+            threshold: 0.5,
+            prefix_padding_ms: 300,
+            silence_duration_ms: 500
+          }
+        }
+      };
+      
+      this.sendJson(sessionUpdate);
+      
+      // Send initial greeting after session is configured
       if (this.config.initialInstructions) {
         setTimeout(() => {
-          const responseCreate = {
-            type: 'response.create',
-            response: {
-              instructions: this.config.initialInstructions
+          // Create a system message to prompt the assistant
+          const systemMessage = {
+            type: 'conversation.item.create',
+            item: {
+              type: 'message',
+              role: 'system',
+              content: [{
+                type: 'input_text',
+                text: `Start the conversation by greeting the user with: "${this.config.initialInstructions}"`
+              }]
             }
+          };
+          
+          this.sendJson(systemMessage);
+          
+          // Trigger the response
+          const responseCreate = {
+            type: 'response.create'
           };
           this.sendJson(responseCreate);
         }, 500);

@@ -1,6 +1,7 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { RealtimeVoiceClient, ConnectionState, RealtimeVoiceConfig } from '~/services/RealtimeVoiceClient';
 import { useAuthContext } from '~/hooks';
+import { DEFAULT_VOICE_SYSTEM_PROMPT, DEFAULT_VOICE_GREETING, DEFAULT_VOICE } from '~/constants/voice';
 import type { TMessage } from 'librechat-data-provider';
 
 interface UseRealtimeVoiceOptions {
@@ -30,8 +31,8 @@ interface UseRealtimeVoiceReturn {
 
 export function useRealtimeVoice({
   conversationId,
-  systemPrompt = 'You are a helpful assistant.',
-  voice = 'cedar',
+  systemPrompt = DEFAULT_VOICE_SYSTEM_PROMPT,
+  voice = DEFAULT_VOICE,
   onTranscriptUpdate,
   onError
 }: UseRealtimeVoiceOptions = {}): UseRealtimeVoiceReturn {
@@ -102,7 +103,7 @@ export function useRealtimeVoice({
       const client = new RealtimeVoiceClient({
         voice,
         systemPrompt,
-        initialInstructions: 'Hello! How can I help you today?',
+        initialInstructions: DEFAULT_VOICE_GREETING,
         authToken: token,
         
         onConnectionStateChange: setConnectionState,
