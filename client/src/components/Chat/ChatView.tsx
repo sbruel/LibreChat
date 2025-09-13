@@ -74,13 +74,27 @@ function ChatView({ index = 0 }: { index?: number }) {
 
   // Handle voice conversation for realtime models
   if (isRealtimeModel && !isLoading) {
-    content = (
-      <VoiceConversation
-        conversationId={conversationId}
-        endpoint={conversation?.endpoint}
-        model={conversation?.model}
-        onTranscriptUpdate={setVoiceMessages}
-      />
+    // For voice conversation, we'll render it differently
+    return (
+      <ChatFormProvider {...methods}>
+        <ChatContext.Provider value={chatHelpers}>
+          <AddedChatContext.Provider value={addedChatHelpers}>
+            <Presentation>
+              <div className="flex h-full w-full flex-col">
+                <Header />
+                <div className="flex flex-col h-full overflow-hidden">
+                  <VoiceConversation
+                    conversationId={conversationId}
+                    endpoint={conversation?.endpoint}
+                    model={conversation?.model}
+                    onTranscriptUpdate={setVoiceMessages}
+                  />
+                </div>
+              </div>
+            </Presentation>
+          </AddedChatContext.Provider>
+        </ChatContext.Provider>
+      </ChatFormProvider>
     );
   } else if (isLoading && conversationId !== Constants.NEW_CONVO) {
     content = <LoadingSpinner />;

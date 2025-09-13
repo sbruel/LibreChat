@@ -10,8 +10,10 @@ import store from '~/store';
 
 export default function MessagesView({
   messagesTree: _messagesTree,
+  hideActionButtons = false,
 }: {
   messagesTree?: TMessage[] | null;
+  hideActionButtons?: boolean;
 }) {
   const localize = useLocalize();
   const fontSize = useRecoilValue(store.fontSize);
@@ -63,6 +65,7 @@ export default function MessagesView({
                       messageId={conversationId ?? null}
                       setCurrentEditId={setCurrentEditId}
                       currentEditId={currentEditId ?? null}
+                      hideActionButtons={hideActionButtons}
                     />
                   </div>
                 </>

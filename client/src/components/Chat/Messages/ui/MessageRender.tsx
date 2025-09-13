@@ -19,6 +19,7 @@ type MessageRenderProps = {
   isCard?: boolean;
   isMultiMessage?: boolean;
   isSubmittingFamily?: boolean;
+  hideActionButtons?: boolean;
 } & Pick<
   TMessageProps,
   'currentEditId' | 'setCurrentEditId' | 'siblingIdx' | 'setSiblingIdx' | 'siblingCount'
@@ -35,6 +36,7 @@ const MessageRender = memo(
     isMultiMessage = false,
     setCurrentEditId,
     isSubmittingFamily = false,
+    hideActionButtons = false,
   }: MessageRenderProps) => {
     const {
       ask,
@@ -188,7 +190,7 @@ const MessageRender = memo(
 
             {hasNoChildren && (isSubmittingFamily === true || isSubmitting) ? (
               <PlaceholderRow isCard={isCard} />
-            ) : (
+            ) : hideActionButtons ? null : (
               <SubRow classes="text-xs">
                 <SiblingSwitch
                   siblingIdx={siblingIdx}

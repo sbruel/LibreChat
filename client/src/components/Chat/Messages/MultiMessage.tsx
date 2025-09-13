@@ -14,7 +14,8 @@ export default function MultiMessage({
   messagesTree,
   currentEditId,
   setCurrentEditId,
-}: TMessageProps) {
+  hideActionButtons = false,
+}: TMessageProps & { hideActionButtons?: boolean }) {
   const [siblingIdx, setSiblingIdx] = useRecoilState(store.messagesSiblingIdxFamily(messageId));
 
   const setSiblingIdxRev = useCallback(
@@ -55,6 +56,7 @@ export default function MultiMessage({
         siblingIdx={messagesTree.length - siblingIdx - 1}
         siblingCount={messagesTree.length}
         setSiblingIdx={setSiblingIdxRev}
+        hideActionButtons={hideActionButtons}
       />
     );
   } else if (message.content) {
@@ -67,6 +69,7 @@ export default function MultiMessage({
         siblingIdx={messagesTree.length - siblingIdx - 1}
         siblingCount={messagesTree.length}
         setSiblingIdx={setSiblingIdxRev}
+        hideActionButtons={hideActionButtons}
       />
     );
   }
@@ -80,6 +83,7 @@ export default function MultiMessage({
       siblingIdx={messagesTree.length - siblingIdx - 1}
       siblingCount={messagesTree.length}
       setSiblingIdx={setSiblingIdxRev}
+      hideActionButtons={hideActionButtons}
     />
   );
 }

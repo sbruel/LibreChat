@@ -28,7 +28,7 @@ const MessageContainer = React.memo(
   },
 );
 
-export default function Message(props: TMessageProps) {
+export default function Message(props: TMessageProps & { hideActionButtons?: boolean }) {
   const {
     showSibling,
     conversation,
@@ -85,6 +85,7 @@ export default function Message(props: TMessageProps) {
         messagesTree={children ?? []}
         currentEditId={currentEditId}
         setCurrentEditId={setCurrentEditId}
+        hideActionButtons={props.hideActionButtons}
       />
     </>
   );
