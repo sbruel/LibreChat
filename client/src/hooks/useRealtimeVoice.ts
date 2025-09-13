@@ -43,11 +43,15 @@ export function useRealtimeVoice({
   const [transcript, setTranscript] = useState<Array<{ role: 'user' | 'assistant'; text: string }>>([]);
   const [currentChunk, setCurrentChunk] = useState('');
   
+  const accumulatedChunkRef = useRef<string>('');
+  
   const voiceClientRef = useRef<RealtimeVoiceClient | null>(null);
   
   const handleTranscript = useCallback((text: string, role: 'user' | 'assistant') => {
     setTranscript(prev => [...prev, { role, text }]);
+    // Clear both the displayed chunk and the accumulated chunk
     setCurrentChunk('');
+    accumulatedChunkRef.current = '';
     
     // Convert to TMessage format if callback provided
     if (onTranscriptUpdate) {
@@ -71,6 +75,19 @@ export function useRealtimeVoice({
   
   const { token } = useAuthContext();
   
+  const handleTranscriptChunk = useCallback((chunk: string) => {
+    // Accumulate chunks
+    accumulatedChunkRef.current += chunk;
+    // Update the displayed chunk with the accumulated text
+    setCurrentChunk(accumulatedChunkRef.current);
+  }, []);
+  
+  const handleResponseStart = useCallback(() => {
+    // Clear the accumulated chunk when a new response starts
+    accumulatedChunkRef.current = '';
+    setCurrentChunk('');
+  }, []);
+  
   const connect = useCallback(async () => {
     if (voiceClientRef.current?.getConnectionState() === 'connected') {
       return;
@@ -90,8 +107,8 @@ export function useRealtimeVoice({
         
         onConnectionStateChange: setConnectionState,
         onTranscript: handleTranscript,
-        onTranscriptChunk: setCurrentChunk,
-        onResponseStart: () => setCurrentChunk(''),
+        onTranscriptChunk: handleTranscriptChunk,
+        onResponseStart: handleResponseStart,
         onMicrophoneLevel: setMicLevel,
         onPlaybackLevel: setSpeakerLevel,
         onError: (error) => {
@@ -108,7 +125,7 @@ export function useRealtimeVoice({
       setConnectionState('error');
       onError?.(error as Error);
     }
-  }, [conversationId, systemPrompt, voice, handleTranscript, onError, token]);
+  }, [conversationId, systemPrompt, voice, handleTranscript, handleTranscriptChunk, handleResponseStart, onError, token]);
   
   const disconnect = useCallback(() => {
     if (voiceClientRef.current) {
