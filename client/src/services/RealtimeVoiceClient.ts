@@ -374,12 +374,15 @@ export class RealtimeVoiceClient {
     this.dataChannel.onopen = () => {
       // Send session update to configure the assistant
       // Try sending tools via session.update as well
+      const instructions = this.config.systemPrompt || DEFAULT_VOICE_SYSTEM_PROMPT;
+      console.log('[RealtimeVoiceClient] Sending custom instructions via session.update:', instructions);
+      
       const sessionUpdate: any = {
         event_id: `evt_${Date.now()}`,
         type: 'session.update',
         session: {
           type: 'realtime',  // Adding this back as the proxy seems to require it
-          instructions: this.config.systemPrompt || DEFAULT_VOICE_SYSTEM_PROMPT,
+          instructions: instructions,
           // Voice and transcription go inside audio configuration
           audio: {
             input: {
@@ -462,6 +465,10 @@ export class RealtimeVoiceClient {
       console.log('[RealtimeVoiceClient] ✅ Session.updated received! Tools:', message.session?.tools?.length || 0);
       if (message.session?.tools?.length > 0) {
         console.log('[RealtimeVoiceClient] Tools after update:', message.session.tools.map((t: any) => t.name || t.type));
+      }
+      // Log the first 200 characters of instructions to verify they were applied
+      if (message.session?.instructions) {
+        console.log('[RealtimeVoiceClient] Instructions confirmed:', message.session.instructions.substring(0, 200) + '...');
       }
     }
     
