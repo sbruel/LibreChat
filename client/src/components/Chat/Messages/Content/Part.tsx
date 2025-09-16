@@ -119,13 +119,19 @@ const Part = memo(
           />
         );
       } else if (isToolCall) {
+        // For voice conversations, handle tool execution state properly
+        const hasOutput = toolCall.output != null && toolCall.output !== '';
+        const isToolExecuting = !hasOutput && toolCall.args;
+        // If there's output, the tool is complete and progress should be 1.0
+        const progress = hasOutput ? 1.0 : (toolCall.progress ?? 0.1);
+        
         return (
           <ToolCall
             args={toolCall.args ?? ''}
             name={toolCall.name || ''}
             output={toolCall.output ?? ''}
-            initialProgress={toolCall.progress ?? 0.1}
-            isSubmitting={isSubmitting}
+            initialProgress={progress}
+            isSubmitting={isSubmitting || isToolExecuting}
             attachments={attachments}
             auth={toolCall.auth}
             expires_at={toolCall.expires_at}

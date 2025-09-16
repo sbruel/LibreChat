@@ -305,17 +305,19 @@ export class RealtimeVoiceClient {
 
   private async fetchToken(): Promise<any> {
     // Build session configuration for token request
-    const sessionConfig = {
+    const sessionConfig: any = {
       session: {
-        type: 'realtime',
-        model: 'gpt-realtime',
+        // Don't include 'type' field - it's not valid for session configuration
+        model: 'gpt-4o-realtime-preview-2024-12-17',
         instructions: this.config.systemPrompt,
         audio: {
           input: {
             turn_detection: {
-              type: 'semantic_vad',
-              create_response: true,
-              interrupt_response: true
+              type: 'server_vad',
+              threshold: 0.5,
+              prefix_padding_ms: 300,
+              silence_duration_ms: 200,
+              create_response: true
             }
           },
           output: {
@@ -329,7 +331,12 @@ export class RealtimeVoiceClient {
     // Add tools if provided
     if (this.config.tools && this.config.tools.length > 0) {
       sessionConfig.session.tools = this.config.tools;
+      console.log('[RealtimeVoiceClient] Adding tools to session config:', this.config.tools);
+    } else {
+      console.log('[RealtimeVoiceClient] No tools provided');
     }
+    
+    console.log('[RealtimeVoiceClient] Full session config being sent to server:', JSON.stringify(sessionConfig, null, 2));
     
     const headers: HeadersInit = {
       'Content-Type': 'application/json'
@@ -351,10 +358,14 @@ export class RealtimeVoiceClient {
     });
     
     if (!response.ok) {
+      const errorText = await response.text();
+      console.error('[RealtimeVoiceClient] Failed to fetch token:', response.status, errorText);
       throw new Error(`Failed to fetch token: ${response.status}`);
     }
     
-    return await response.json();
+    const tokenData = await response.json();
+    // Token received successfully
+    return tokenData;
   }
 
   private setupDataChannel(): void {
@@ -362,25 +373,36 @@ export class RealtimeVoiceClient {
     
     this.dataChannel.onopen = () => {
       // Send session update to configure the assistant
-      const sessionUpdate = {
+      // Try sending tools via session.update as well
+      const sessionUpdate: any = {
+        event_id: `evt_${Date.now()}`,
         type: 'session.update',
         session: {
-          modalities: ['text', 'audio'],
+          type: 'realtime',  // Adding this back as the proxy seems to require it
           instructions: this.config.systemPrompt || DEFAULT_VOICE_SYSTEM_PROMPT,
-          voice: this.config.voice || DEFAULT_VOICE,
-          input_audio_transcription: {
-            model: 'whisper-1'
-          },
-          turn_detection: {
-            type: 'server_vad',
-            threshold: 0.5,
-            prefix_padding_ms: 300,
-            silence_duration_ms: 500
+          // Voice and transcription go inside audio configuration
+          audio: {
+            input: {
+              transcription: {
+                model: 'whisper-1'
+              }
+            },
+            output: {
+              voice: this.config.voice || DEFAULT_VOICE
+            }
           }
         }
       };
       
+      // Try adding tools to session.update even though docs say it won't work
+      // The proxy might handle this differently
+      if (this.config.tools && this.config.tools.length > 0) {
+        sessionUpdate.session.tools = this.config.tools;
+        console.log(`[RealtimeVoiceClient] Adding ${this.config.tools.length} tools to session.update`);
+      }
+      
       this.sendJson(sessionUpdate);
+      console.log('[RealtimeVoiceClient] Session.update sent (instructions, voice, transcription)');
       
       // Send initial greeting after session is configured
       if (this.config.initialInstructions) {
@@ -424,6 +446,35 @@ export class RealtimeVoiceClient {
   }
 
   private handleRealtimeMessage(message: any): void {
+    // Only log important events
+    if (message.type === 'session.created') {
+      console.log('[RealtimeVoiceClient] Session created with tools:', message.session?.tools?.length || 0);
+      if (message.session?.tools?.length > 0) {
+        console.log('[RealtimeVoiceClient] ✅ Tools available in session:', message.session.tools.map((t: any) => t.name || t.type));
+      } else {
+        console.log('[RealtimeVoiceClient] ⚠️ No tools in session.created response');
+        // Log full session to debug
+        console.log('[RealtimeVoiceClient] Session object:', JSON.stringify(message.session, null, 2));
+      }
+    }
+    
+    if (message.type === 'session.updated') {
+      console.log('[RealtimeVoiceClient] ✅ Session.updated received! Tools:', message.session?.tools?.length || 0);
+      if (message.session?.tools?.length > 0) {
+        console.log('[RealtimeVoiceClient] Tools after update:', message.session.tools.map((t: any) => t.name || t.type));
+      }
+    }
+    
+    // Log tool/function call events - these are the most important
+    if (message.type?.includes('function_call') || message.type?.includes('tool')) {
+      console.log('[RealtimeVoiceClient] 🛠️ Tool call event:', message.type, message);
+    }
+    
+    // Log errors
+    if (message.type === 'error') {
+      console.error('[RealtimeVoiceClient] Error:', message);
+    }
+    
     switch(message.type) {
       case 'session.created':
       case 'session.updated':
@@ -477,14 +528,26 @@ export class RealtimeVoiceClient {
         
       case 'response.function_call_arguments.done':
         // Tool call requested by the assistant
-        if (this.config.onToolCall && message.call_id && message.name) {
+        if (message.call_id && message.name) {
           let args = {};
           try {
             args = message.arguments ? JSON.parse(message.arguments) : {};
           } catch (e) {
             console.error('Failed to parse tool arguments:', e);
           }
-          this.config.onToolCall(message.call_id, message.name, args);
+          
+          // Log the tool call for debugging
+          console.log('[RealtimeVoiceClient] Tool call complete:', {
+            call_id: message.call_id,
+            name: message.name,
+            args
+          });
+          
+          // Call the handler to execute the tool and get results
+          if (this.config.onToolCall) {
+            // Execute the tool call and send results back
+            this.config.onToolCall(message.call_id, message.name, args);
+          }
         }
         break;
         

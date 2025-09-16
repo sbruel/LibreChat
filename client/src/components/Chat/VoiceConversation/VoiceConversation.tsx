@@ -7,6 +7,17 @@ import { buildTree } from 'librechat-data-provider';
 import { useRecoilValue } from 'recoil';
 import store from '~/store';
 import { DEFAULT_VOICE_SYSTEM_PROMPT, DEFAULT_VOICE } from '~/constants/voice';
+import { BadgeRowProvider, useBadgeRowContext } from '~/Providers';
+import ToolsDropdown from '../Input/ToolsDropdown';
+import WebSearch from '../Input/WebSearch';
+import CodeInterpreter from '../Input/CodeInterpreter';
+import FileSearch from '../Input/FileSearch';
+import Artifacts from '../Input/Artifacts';
+import MCPSelect from '../Input/MCPSelect';
+import ToolDialogs from '../Input/ToolDialogs';
+import { Tools, EModelEndpoint, Constants } from 'librechat-data-provider';
+import type { TPlugin } from 'librechat-data-provider';
+import { useAvailableToolsQuery } from '~/data-provider';
 
 interface VoiceConversationProps {
   conversationId?: string;
@@ -15,7 +26,7 @@ interface VoiceConversationProps {
   onTranscriptUpdate?: (messages: TMessage[]) => void;
 }
 
-export default function VoiceConversation({
+function VoiceConversationInner({
   conversationId,
   endpoint,
   model,
@@ -24,6 +35,117 @@ export default function VoiceConversation({
   const conversation = useRecoilValue(store.conversationByIndex(0));
   const messageIdCounter = useRef(0);
   const messageIdMap = useRef<Map<string, string>>(new Map());
+  
+  // Get tools from context
+  const { webSearch, codeInterpreter, fileSearch, artifacts, mcpServerManager } = useBadgeRowContext();
+  
+  // Get MCP tools from API
+  const { data: availableTools } = useAvailableToolsQuery(EModelEndpoint.agents);
+  
+  // Build tools array based on active states
+  const tools = useMemo(() => {
+    const activeTools: any[] = [];
+    
+    if (webSearch.toggleState) {
+      activeTools.push({
+        type: 'function',
+        name: Tools.web_search,
+        description: 'Search the web for information',
+        parameters: {
+          type: 'object',
+          properties: {
+            query: {
+              type: 'string',
+              description: 'The search query'
+            }
+          },
+          required: ['query']
+        }
+      });
+    }
+    
+    if (codeInterpreter.toggleState) {
+      activeTools.push({
+        type: 'function',
+        name: Tools.execute_code,
+        description: 'Execute Python code',
+        parameters: {
+          type: 'object',
+          properties: {
+            code: {
+              type: 'string',
+              description: 'The Python code to execute'
+            }
+          },
+          required: ['code']
+        }
+      });
+    }
+    
+    if (fileSearch.toggleState) {
+      activeTools.push({
+        type: 'function',
+        name: Tools.file_search,
+        description: 'Search through uploaded files',
+        parameters: {
+          type: 'object',
+          properties: {
+            query: {
+              type: 'string',
+              description: 'The search query'
+            }
+          },
+          required: ['query']
+        }
+      });
+    }
+    
+    // Add MCP server tools if any are active
+    if (mcpServerManager.mcpValues && mcpServerManager.mcpValues.length > 0 && availableTools) {
+      
+      // Filter and add MCP tools based on selected servers
+      mcpServerManager.mcpValues.forEach(serverName => {
+        const mcpTools = availableTools.filter((tool: TPlugin) => {
+          // Check if this tool belongs to the selected MCP server
+          const isMCP = tool.pluginKey?.includes(Constants.mcp_delimiter);
+          if (!isMCP) return false;
+          
+          const parts = tool.pluginKey.split(Constants.mcp_delimiter);
+          const toolServerName = parts[parts.length - 1];
+          return toolServerName === serverName;
+        });
+        
+        // Convert MCP tools to OpenAI function format
+        mcpTools.forEach((tool: TPlugin) => {
+          // Extract the actual tool name from the pluginKey
+          const parts = tool.pluginKey.split(Constants.mcp_delimiter);
+          const toolName = parts[0]; // The first part is the actual tool name
+          
+          // For MCP tools, we need to provide a basic query parameter
+          // since the actual tool specs aren't available in the TPlugin type
+          activeTools.push({
+            type: 'function',
+            name: tool.pluginKey, // Use the full pluginKey as the function name
+            description: tool.description || `MCP tool: ${toolName}`,
+            parameters: {
+              type: 'object',
+              properties: {
+                query: {
+                  type: 'string',
+                  description: 'The search query or input for the tool'
+                }
+              },
+              required: ['query']
+            }
+          });
+        });
+      });
+    }
+    
+    return activeTools;
+  }, [webSearch.toggleState, codeInterpreter.toggleState, fileSearch.toggleState, artifacts.toggleState, mcpServerManager.mcpValues, availableTools]);
+  
+  // Remove repetitive logging - these are in useMemo and run on every render
   
   const {
     connectionState,
@@ -41,8 +163,10 @@ export default function VoiceConversation({
     toggleSpeaker
   } = useRealtimeVoice({
     conversationId,
-    systemPrompt: conversation?.assistant || DEFAULT_VOICE_SYSTEM_PROMPT,
+    systemPrompt: conversation?.instructions || DEFAULT_VOICE_SYSTEM_PROMPT,
     voice: DEFAULT_VOICE,
+    tools,
+    agentOptions: conversation?.agentOptions,
     onTranscriptUpdate,
     onError: (error) => {
       console.error('Voice conversation error:', error);
@@ -82,7 +206,7 @@ export default function VoiceConversation({
     transcript.forEach((entry, index) => {
       const messageId = getStableMessageId(index, entry.role, entry.text);
       
-      messages.push({
+      const message: TMessage = {
         messageId,
         conversationId: conversationId || '',
         parentMessageId: lastMessageId,
@@ -95,7 +219,43 @@ export default function VoiceConversation({
         model: model || '',
         createdAt: new Date(Date.now() - (transcript.length - index) * 5000).toISOString(),
         updatedAt: new Date(Date.now() - (transcript.length - index) * 5000).toISOString(),
-      } as TMessage);
+      } as TMessage;
+      
+      // Add tool call data properly formatted for ToolCall component
+      if ('plugin' in entry && entry.plugin && entry.plugin.tool_call) {
+        
+        // Format as content_parts for proper tool call display
+        const toolProgress = entry.plugin.tool_call.progress !== undefined 
+          ? entry.plugin.tool_call.progress 
+          : (entry.plugin.loading ? 0.5 : 1.0);
+        
+        console.log('[VoiceConversation] Tool call progress:', {
+          name: entry.plugin.tool_call.function.name,
+          loading: entry.plugin.loading,
+          hasOutput: !!entry.plugin.tool_call.output,
+          progress: toolProgress
+        });
+        
+        message.content = [
+          {
+            type: 'tool_call',
+            tool_call: {
+              name: entry.plugin.tool_call.function.name,
+              args: entry.plugin.tool_call.function.arguments,
+              output: entry.plugin.tool_call.output || entry.plugin.output || null,
+              progress: toolProgress,
+            }
+          }
+        ];
+        // Clear text for tool call messages
+        message.text = '';
+        
+      } else if ('plugin' in entry && entry.plugin) {
+        // Fallback to old plugin format
+        message.plugin = entry.plugin;
+      }
+      
+      messages.push(message);
       
       lastMessageId = messageId;
     });
@@ -159,9 +319,9 @@ export default function VoiceConversation({
       {/* Fixed bottom voice controls */}
       <div className="sticky bottom-0 left-0 right-0 z-50 bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-700">
         <div className="mx-auto max-w-3xl px-4 py-3">
-          <div className="flex items-center justify-center space-x-4">
-            {/* Main call button */}
-            <button
+            <div className="flex items-center justify-center gap-4">
+                {/* Main call button */}
+                <button
               onClick={handleConnect}
               className={`
                 relative p-4 rounded-full transition-all duration-300
@@ -260,9 +420,28 @@ export default function VoiceConversation({
                 </span>
               )}
             </div>
-          </div>
+            
+            {/* Tools selection */}
+            <div className="flex items-center gap-2 ml-auto">
+              <ToolsDropdown disabled={false} />
+              <WebSearch />
+              <CodeInterpreter />
+              <FileSearch />
+              <Artifacts />
+              <MCPSelect />
+            </div>
+            </div>
+            <ToolDialogs />
         </div>
       </div>
     </>
+  );
+}
+
+export default function VoiceConversation(props: VoiceConversationProps) {
+  return (
+    <BadgeRowProvider conversationId={props.conversationId} isSubmitting={false}>
+      <VoiceConversationInner {...props} />
+    </BadgeRowProvider>
   );
 }

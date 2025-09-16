@@ -120,6 +120,7 @@ const startServer = async () => {
   app.use('/api/categories', routes.categories);
   app.use('/api/tokenizer', routes.tokenizer);
   app.use('/api/realtime', routes.realtime);
+  app.use('/api/realtime-tools', routes.realtimeTools);
   app.use('/api/audio', routes.audio);
   app.use('/api/endpoints', routes.endpoints);
   app.use('/api/balance', routes.balance);

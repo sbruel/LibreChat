@@ -28,6 +28,7 @@ const keys = require('./keys');
 const user = require('./user');
 const mcp = require('./mcp');
 const realtime = require('./realtime');
+const realtimeTools = require('./realtime-tools');
 const audio = require('./audio');
 
 module.exports = {
@@ -59,6 +60,7 @@ module.exports = {
   assistants,
   categories,
   realtime,
+  realtimeTools,
   audio,
   staticRoute,
   accessPermissions,
