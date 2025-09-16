@@ -102,6 +102,33 @@ export function useRealtimeVoice({
   const handleToolCall = useCallback(async (callId: string, name: string, args: any) => {
     console.log('[useRealtimeVoice] Tool call received:', { callId, name, args });
     
+    // Check if this is the end-conversation tool
+    if (name === 'end_conversation') {
+      console.log('[useRealtimeVoice] End conversation tool called with reason:', args.reason);
+      
+      // Send a brief acknowledgment to the transcript
+      const acknowledgments = {
+        'user_goodbye': "Goodbye! It was nice talking with you.",
+        'task_completed': "Great! I'm glad I could help.",
+        'user_request': "Ending the call as requested.",
+        'error': "I apologize for the issue. Ending the call."
+      };
+      
+      const message = acknowledgments[args.reason as keyof typeof acknowledgments] || "Ending the conversation.";
+      handleTranscript(message, 'assistant');
+      
+      // Wait a moment for the message to be shown, then disconnect
+      setTimeout(() => {
+        if (voiceClientRef.current) {
+          voiceClientRef.current.disconnect();
+          voiceClientRef.current = null;
+        }
+      }, 1000);
+      
+      // Don't process this as a regular tool
+      return;
+    }
+    
     // Add tool call to transcript with proper structure for ToolCall component
     // Store the tool call in content_parts format for proper display
     const toolPlugin = {
@@ -250,8 +277,28 @@ export function useRealtimeVoice({
       console.warn('No auth token available in useRealtimeVoice');
     }
     
-    console.log('[useRealtimeVoice] Connecting with tools:', tools);
-    console.log('[useRealtimeVoice] Tools count:', tools?.length || 0);
+    // Add the end-conversation tool to the list
+    const endConversationTool = {
+      type: 'function' as const,
+      name: 'end_conversation',
+      description: 'End the current voice conversation. Use this when the user says goodbye, thanks you and seems done, or explicitly asks to end the call.',
+      parameters: {
+        type: 'object',
+        properties: {
+          reason: {
+            type: 'string',
+            description: 'Brief reason for ending the conversation',
+            enum: ['user_goodbye', 'task_completed', 'user_request', 'error']
+          }
+        },
+        required: ['reason']
+      }
+    };
+    
+    const allTools = [...(tools || []), endConversationTool];
+    
+    console.log('[useRealtimeVoice] Connecting with tools:', allTools);
+    console.log('[useRealtimeVoice] Tools count:', allTools.length);
     
     try {
       const client = new RealtimeVoiceClient({
@@ -259,7 +306,7 @@ export function useRealtimeVoice({
         systemPrompt,
         initialInstructions: DEFAULT_VOICE_GREETING,
         authToken: token,
-        tools,
+        tools: allTools,
         
         onConnectionStateChange: setConnectionState,
         onTranscript: handleTranscript,
