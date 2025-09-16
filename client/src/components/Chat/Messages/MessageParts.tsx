@@ -12,7 +12,7 @@ import SubRow from './SubRow';
 import { cn } from '~/utils';
 import store from '~/store';
 
-export default function Message(props: TMessageProps) {
+export default function Message(props: TMessageProps & { hideActionButtons?: boolean }) {
   const localize = useLocalize();
   const { message, siblingIdx, siblingCount, setSiblingIdx, currentEditId, setCurrentEditId } =
     props;
@@ -130,7 +130,7 @@ export default function Message(props: TMessageProps) {
                 </div>
                 {isLast && isSubmitting ? (
                   <div className="mt-1 h-[27px] bg-transparent" />
-                ) : (
+                ) : props.hideActionButtons ? null : (
                   <SubRow classes="text-xs">
                     <SiblingSwitch
                       siblingIdx={siblingIdx}
@@ -164,6 +164,7 @@ export default function Message(props: TMessageProps) {
         messagesTree={children ?? []}
         currentEditId={currentEditId}
         setCurrentEditId={setCurrentEditId}
+        hideActionButtons={props.hideActionButtons}
       />
     </>
   );

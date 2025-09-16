@@ -17,6 +17,7 @@ type ContentRenderProps = {
   isCard?: boolean;
   isMultiMessage?: boolean;
   isSubmittingFamily?: boolean;
+  hideActionButtons?: boolean;
 } & Pick<
   TMessageProps,
   'currentEditId' | 'setCurrentEditId' | 'siblingIdx' | 'setSiblingIdx' | 'siblingCount'
@@ -33,6 +34,7 @@ const ContentRender = memo(
     isMultiMessage = false,
     setCurrentEditId,
     isSubmittingFamily = false,
+    hideActionButtons = false,
   }: ContentRenderProps) => {
     const { attachments, searchResults } = useAttachments({
       messageId: msg?.messageId,
@@ -181,7 +183,7 @@ const ContentRender = memo(
 
             {(isSubmittingFamily || isSubmitting) && !(msg.children?.length ?? 0) ? (
               <PlaceholderRow isCard={isCard} />
-            ) : (
+            ) : hideActionButtons ? null : (
               <SubRow classes="text-xs">
                 <SiblingSwitch
                   siblingIdx={siblingIdx}
