@@ -320,11 +320,21 @@ function VoiceConversationInner({
       <div className="sticky bottom-0 left-0 right-0 z-50 bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-700">
         <div className="mx-auto max-w-3xl px-4 py-3">
             <div className="flex items-center justify-center gap-4">
-                {/* Main call button */}
+                {/* Tools selection - moved to left of call button */}
+                <div className="flex items-center gap-2">
+                  <ToolsDropdown disabled={false} />
+                  <WebSearch />
+                  <CodeInterpreter />
+                  <FileSearch />
+                  <Artifacts />
+                  <MCPSelect />
+                </div>
+
+                {/* Main call button - made smaller */}
                 <button
               onClick={handleConnect}
               className={`
-                relative p-4 rounded-full transition-all duration-300
+                relative p-3 rounded-full transition-all duration-300
                 ${isConnected 
                   ? 'bg-red-500 hover:bg-red-600 text-white shadow-lg' 
                   : isConnecting
@@ -357,9 +367,9 @@ function VoiceConversationInner({
               )}
               
               {isConnected ? (
-                <PhoneOff className="w-6 h-6 relative z-10" />
+                <PhoneOff className="w-5 h-5 relative z-10" />
               ) : (
-                <Phone className="w-6 h-6 relative z-10" />
+                <Phone className="w-5 h-5 relative z-10" />
               )}
             </button>
 
@@ -419,16 +429,6 @@ function VoiceConversationInner({
                   Error
                 </span>
               )}
-            </div>
-            
-            {/* Tools selection */}
-            <div className="flex items-center gap-2 ml-auto">
-              <ToolsDropdown disabled={false} />
-              <WebSearch />
-              <CodeInterpreter />
-              <FileSearch />
-              <Artifacts />
-              <MCPSelect />
             </div>
             </div>
             <ToolDialogs />
