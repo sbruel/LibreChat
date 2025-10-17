@@ -1,8 +1,10 @@
-import React, { useState, useRef } from 'react';
 import * as Tabs from '@radix-ui/react-tabs';
+import React, { useState, useRef, useEffect } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { SettingsTabValues } from 'librechat-data-provider';
 import { MessageSquare, Command, DollarSign } from 'lucide-react';
 import { Dialog, DialogPanel, DialogTitle, Transition, TransitionChild } from '@headlessui/react';
+
 import {
   GearIcon,
   DataIcon,
@@ -34,6 +36,8 @@ export default function Settings({ open, onOpenChange }: TDialogProps) {
   const [activeTab, setActiveTab] = useState(SettingsTabValues.GENERAL);
   const tabRefs = useRef({});
   const { hasAnyPersonalizationFeature, hasMemoryOptOut } = usePersonalizationAccess();
+  const navigate = useNavigate();
+  const location = useLocation();
 
   const handleKeyDown = (event: React.KeyboardEvent) => {
     const tabs: SettingsTabValues[] = [
@@ -95,12 +99,12 @@ export default function Settings({ open, onOpenChange }: TDialogProps) {
     },
     ...(hasAnyPersonalizationFeature
       ? [
-          {
-            value: SettingsTabValues.PERSONALIZATION,
-            icon: <PersonalizationIcon />,
-            label: 'com_nav_setting_personalization' as TranslationKeys,
-          },
-        ]
+        {
+          value: SettingsTabValues.PERSONALIZATION,
+          icon: <PersonalizationIcon />,
+          label: 'com_nav_setting_personalization' as TranslationKeys,
+        },
+      ]
       : []),
     {
       value: SettingsTabValues.DATA,
@@ -109,12 +113,12 @@ export default function Settings({ open, onOpenChange }: TDialogProps) {
     },
     ...(startupConfig?.balance?.enabled
       ? [
-          {
-            value: SettingsTabValues.BALANCE,
-            icon: <DollarSign size={18} />,
-            label: 'com_nav_setting_balance' as TranslationKeys,
-          },
-        ]
+        {
+          value: SettingsTabValues.BALANCE,
+          icon: <DollarSign size={18} />,
+          label: 'com_nav_setting_balance' as TranslationKeys,
+        },
+      ]
       : ([] as { value: SettingsTabValues; icon: React.JSX.Element; label: TranslationKeys }[])),
     {
       value: SettingsTabValues.ACCOUNT,
@@ -123,13 +127,47 @@ export default function Settings({ open, onOpenChange }: TDialogProps) {
     },
   ];
 
+  // Handle initial tab from URL
+  useEffect(() => {
+    if (open) {
+      const pathParts = location.pathname.split('/');
+      const settingsIndex = pathParts.indexOf('settings');
+      if (settingsIndex !== -1 && pathParts[settingsIndex + 1]) {
+        const tabFromUrl = pathParts[settingsIndex + 1];
+        // Validate that the tab exists
+        const validTab = Object.values(SettingsTabValues).includes(tabFromUrl as SettingsTabValues);
+        if (validTab) {
+          setActiveTab(tabFromUrl as SettingsTabValues);
+        }
+      }
+    }
+  }, [open, location.pathname]);
+
+  // Handle closing the dialog and navigating back
+  const handleClose = () => {
+    if (location.pathname.includes('/settings')) {
+      // Navigate back to the previous route or to /c/new if no history
+      navigate(-1);
+    }
+    onOpenChange(false);
+  };
+
   const handleTabChange = (value: string) => {
     setActiveTab(value as SettingsTabValues);
+    // Update URL when tab changes
+    if (open && location.pathname.includes('/settings')) {
+      const pathParts = location.pathname.split('/');
+      const settingsIndex = pathParts.indexOf('settings');
+      if (settingsIndex !== -1) {
+        const newPath = [...pathParts.slice(0, settingsIndex + 1), value].join('/');
+        navigate(newPath, { replace: true });
+      }
+    }
   };
 
   return (
     <Transition appear show={open}>
-      <Dialog as="div" className="relative z-50" onClose={onOpenChange}>
+      <Dialog as="div" className="relative z-50" onClose={handleClose}>
         <TransitionChild
           enter="ease-out duration-200"
           enterFrom="opacity-0"
@@ -165,7 +203,7 @@ export default function Settings({ open, onOpenChange }: TDialogProps) {
                 <button
                   type="button"
                   className="rounded-sm opacity-70 transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-border-xheavy focus:ring-offset-2 disabled:pointer-events-none data-[state=open]:bg-surface-primary dark:focus:ring-offset-surface-primary"
-                  onClick={() => onOpenChange(false)}
+                  onClick={handleClose}
                 >
                   <svg
                     xmlns="http://www.w3.org/2000/svg"
