@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Outlet } from 'react-router-dom';
+import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import type { ContextType } from '~/common';
 import {
   useSearchEnabled,
@@ -16,8 +16,8 @@ import {
   FileMapContext,
 } from '~/Providers';
 import { useUserTermsQuery, useGetStartupConfig } from '~/data-provider';
+import { Nav, MobileNav, Settings } from '~/components/Nav';
 import { TermsAndConditionsModal } from '~/components/ui';
-import { Nav, MobileNav } from '~/components/Nav';
 import { useHealthCheck } from '~/data-provider';
 import { Banner } from '~/components/Banners';
 
@@ -30,6 +30,13 @@ export default function Root() {
   });
 
   const { isAuthenticated, logout } = useAuthContext();
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  // Check if settings should be shown via hash (e.g., #settings or #settings/general)
+  const settingsHash = location.hash.match(/^#settings(?:\/([^/]+))?$/);
+  const showSettings = !!settingsHash;
+  const settingsTab = settingsHash?.[1];
 
   // Global health check - runs once per authenticated session
   useHealthCheck(isAuthenticated);
@@ -58,6 +65,13 @@ export default function Root() {
   const handleDeclineTerms = () => {
     setShowTerms(false);
     logout('/login?redirect=false');
+  };
+
+  const handleSettingsOpenChange = (open: boolean) => {
+    if (!open) {
+      // Closing settings - remove the hash
+      navigate(location.pathname + location.search, { replace: true });
+    }
   };
 
   if (!isAuthenticated) {
@@ -92,6 +106,7 @@ export default function Root() {
               modalContent={config.interface.termsOfService.modalContent}
             />
           )}
+          <Settings open={showSettings} onOpenChange={handleSettingsOpenChange} initialTab={settingsTab} />
         </AssistantsMapContext.Provider>
       </FileMapContext.Provider>
     </SetConvoProvider>

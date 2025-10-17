@@ -29,15 +29,15 @@ import { useLocalize, TranslationKeys } from '~/hooks';
 import { useGetStartupConfig } from '~/data-provider';
 import { cn } from '~/utils';
 
-export default function Settings({ open, onOpenChange }: TDialogProps) {
+export default function Settings({ open, onOpenChange, initialTab }: TDialogProps & { initialTab?: string }) {
   const isSmallScreen = useMediaQuery('(max-width: 767px)');
   const { data: startupConfig } = useGetStartupConfig();
   const localize = useLocalize();
+  const navigate = useNavigate();
+  const location = useLocation();
   const [activeTab, setActiveTab] = useState(SettingsTabValues.GENERAL);
   const tabRefs = useRef({});
   const { hasAnyPersonalizationFeature, hasMemoryOptOut } = usePersonalizationAccess();
-  const navigate = useNavigate();
-  const location = useLocation();
 
   const handleKeyDown = (event: React.KeyboardEvent) => {
     const tabs: SettingsTabValues[] = [
@@ -99,12 +99,12 @@ export default function Settings({ open, onOpenChange }: TDialogProps) {
     },
     ...(hasAnyPersonalizationFeature
       ? [
-        {
-          value: SettingsTabValues.PERSONALIZATION,
-          icon: <PersonalizationIcon />,
-          label: 'com_nav_setting_personalization' as TranslationKeys,
-        },
-      ]
+          {
+            value: SettingsTabValues.PERSONALIZATION,
+            icon: <PersonalizationIcon />,
+            label: 'com_nav_setting_personalization' as TranslationKeys,
+          },
+        ]
       : []),
     {
       value: SettingsTabValues.DATA,
@@ -113,12 +113,12 @@ export default function Settings({ open, onOpenChange }: TDialogProps) {
     },
     ...(startupConfig?.balance?.enabled
       ? [
-        {
-          value: SettingsTabValues.BALANCE,
-          icon: <DollarSign size={18} />,
-          label: 'com_nav_setting_balance' as TranslationKeys,
-        },
-      ]
+          {
+            value: SettingsTabValues.BALANCE,
+            icon: <DollarSign size={18} />,
+            label: 'com_nav_setting_balance' as TranslationKeys,
+          },
+        ]
       : ([] as { value: SettingsTabValues; icon: React.JSX.Element; label: TranslationKeys }[])),
     {
       value: SettingsTabValues.ACCOUNT,
@@ -127,41 +127,30 @@ export default function Settings({ open, onOpenChange }: TDialogProps) {
     },
   ];
 
-  // Handle initial tab from URL
+  // Handle initial tab from prop
   useEffect(() => {
-    if (open) {
-      const pathParts = location.pathname.split('/');
-      const settingsIndex = pathParts.indexOf('settings');
-      if (settingsIndex !== -1 && pathParts[settingsIndex + 1]) {
-        const tabFromUrl = pathParts[settingsIndex + 1];
-        // Validate that the tab exists
-        const validTab = Object.values(SettingsTabValues).includes(tabFromUrl as SettingsTabValues);
-        if (validTab) {
-          setActiveTab(tabFromUrl as SettingsTabValues);
-        }
+    if (open && initialTab) {
+      // Validate that the tab exists
+      const validTab = Object.values(SettingsTabValues).includes(initialTab as SettingsTabValues);
+      if (validTab) {
+        setActiveTab(initialTab as SettingsTabValues);
       }
+    } else if (open && !initialTab) {
+      // Reset to GENERAL when opening without a tab
+      setActiveTab(SettingsTabValues.GENERAL);
     }
-  }, [open, location.pathname]);
+  }, [open, initialTab]);
 
-  // Handle closing the dialog and navigating back
+  // Handle closing the dialog
   const handleClose = () => {
-    if (location.pathname.includes('/settings')) {
-      // Navigate back to the previous route or to /c/new if no history
-      navigate(-1);
-    }
     onOpenChange(false);
   };
 
   const handleTabChange = (value: string) => {
     setActiveTab(value as SettingsTabValues);
-    // Update URL when tab changes
-    if (open && location.pathname.includes('/settings')) {
-      const pathParts = location.pathname.split('/');
-      const settingsIndex = pathParts.indexOf('settings');
-      if (settingsIndex !== -1) {
-        const newPath = [...pathParts.slice(0, settingsIndex + 1), value].join('/');
-        navigate(newPath, { replace: true });
-      }
+    // Update hash when tab changes
+    if (open) {
+      navigate(location.pathname + location.search + `#settings/${value}`, { replace: true });
     }
   };
 

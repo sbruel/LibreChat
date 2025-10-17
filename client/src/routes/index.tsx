@@ -14,7 +14,6 @@ import { OAuthSuccess, OAuthError } from '~/components/OAuth';
 import { AuthContextProvider } from '~/hooks/AuthContext';
 import RouteErrorBoundary from './RouteErrorBoundary';
 import StartupLayout from './Layouts/Startup';
-import SettingsRoute from './SettingsRoute';
 import LoginLayout from './Layouts/Login';
 import dashboardRoutes from './Dashboard';
 import ShareRoute from './ShareRoute';
@@ -111,14 +110,6 @@ export const router = createBrowserRouter(
             {
               path: 'search',
               element: <Search />,
-            },
-            {
-              path: 'settings',
-              element: <SettingsRoute />,
-            },
-            {
-              path: 'settings/:tab',
-              element: <SettingsRoute />,
             },
             {
               path: 'agents',
